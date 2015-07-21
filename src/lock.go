@@ -49,13 +49,13 @@ func tryLock(c appengine.Context, cfg *LockConfig) (*LockResult, error) {
 	}
 	if cfg.Unlock == 0 {
 		l.LockTime = time.Now().UnixNano() + cfg.DurationInMillis*1000000
-		l.Owner = cfg.Owner
 	} else {
 		if cfg.Unlock != l.LockTime {
 			return result, nil
 		}
 		l.LockTime = 0
 	}
+	l.Owner = cfg.Owner
 	l.ModifiedTime = time.Now().UnixNano()
 	if _, err := datastore.Put(c, GetKey(c, cfg.Key), &l); err != nil {
 		return result, err
@@ -72,12 +72,12 @@ func lock(w http.ResponseWriter, r *http.Request) error {
 	}
 	cfg.Key = r.FormValue("key")
 
-	if r.FormValue("unlock") == "" {
-		if r.FormValue("owner") == "" {
-			return errors.New("owner is missing.")
-		}
-		cfg.Owner = r.FormValue("owner")
+	if r.FormValue("owner") == "" {
+		return errors.New("owner is missing.")
+	}
+	cfg.Owner = r.FormValue("owner")
 
+	if r.FormValue("unlock") == "" {
 		if r.FormValue("duration") == "" {
 			return errors.New("duration is missing.")
 		}
