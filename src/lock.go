@@ -49,6 +49,7 @@ func tryLock(c appengine.Context, cfg *LockConfig) (*LockResult, error) {
 	}
 	if cfg.Unlock == 0 {
 		l.LockTime = time.Now().UnixNano() + cfg.DurationInMillis*1000000
+		l.Owner = cfg.Owner
 	} else {
 		if cfg.Unlock != l.LockTime {
 			return result, nil
@@ -56,7 +57,6 @@ func tryLock(c appengine.Context, cfg *LockConfig) (*LockResult, error) {
 		l.LockTime = 0
 	}
 	l.ModifiedTime = time.Now().UnixNano()
-	l.Owner = cfg.Owner
 	if _, err := datastore.Put(c, GetKey(c, cfg.Key), &l); err != nil {
 		return result, err
 	}
@@ -72,29 +72,34 @@ func lock(w http.ResponseWriter, r *http.Request) error {
 	}
 	cfg.Key = r.FormValue("key")
 
-	if r.FormValue("owner") == "" {
-		return errors.New("owner is missing.")
-	}
-	cfg.Owner = r.FormValue("owner")
+	if r.FormValue("unlock") == "" {
+		if r.FormValue("owner") == "" {
+			return errors.New("owner is missing.")
+		}
+		cfg.Owner = r.FormValue("owner")
 
-	if r.FormValue("duration") == "" {
-		return errors.New("duration is missing.")
-	}
-	duration_in_secs, err := strconv.ParseFloat(r.FormValue("duration"), 32)
-	if err != nil {
-		return fmt.Errorf("Failed to convert duration: %s", err)
-	}
-	cfg.DurationInMillis = int64(duration_in_secs * 1000)
-
-	if r.FormValue("unlock") != "" {
+		if r.FormValue("duration") == "" {
+			return errors.New("duration is missing.")
+		}
+		duration_in_secs, err := strconv.ParseFloat(r.FormValue("duration"), 32)
+		if err != nil {
+			return fmt.Errorf("Failed to convert duration: %s", err)
+		}
+		cfg.DurationInMillis = int64(duration_in_secs * 1000)
+	} else {
+		var err error
 		cfg.Unlock, err = strconv.ParseInt(r.FormValue("unlock"), 10, 64)
 		if err != nil {
 			return fmt.Errorf("Failed to convert unlock: %s", err)
+		}
+		if cfg.Unlock == 0 {
+			return errors.New("unlock must not be 0.")
 		}
 	}
 
 	c := appengine.NewContext(r)
 	var result *LockResult
+	var err error
 	if err := datastore.RunInTransaction(c, func(c appengine.Context) error {
 		result, err = tryLock(c, cfg)
 		return nil
