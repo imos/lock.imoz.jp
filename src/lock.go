@@ -78,14 +78,15 @@ func lock(w http.ResponseWriter, r *http.Request) error {
 	}
 	cfg.Owner = r.FormValue("owner")
 
+	if r.FormValue("unlock") == "" && r.FormValue("duration") == "" {
+		return errors.New("duration is missing.")
+	}
+	duration_in_secs, err := strconv.ParseFloat(r.FormValue("duration"), 32)
+	if err != nil {
+		return fmt.Errorf("Failed to convert duration: %s", err)
+	}
+
 	if r.FormValue("unlock") == "" {
-		if r.FormValue("duration") == "" {
-			return errors.New("duration is missing.")
-		}
-		duration_in_secs, err := strconv.ParseFloat(r.FormValue("duration"), 32)
-		if err != nil {
-			return fmt.Errorf("Failed to convert duration: %s", err)
-		}
 		cfg.DurationInMillis = int64(duration_in_secs * 1000)
 	} else {
 		var err error
@@ -100,7 +101,6 @@ func lock(w http.ResponseWriter, r *http.Request) error {
 
 	c := appengine.NewContext(r)
 	var result *LockResult
-	var err error
 	if err := datastore.RunInTransaction(c, func(c appengine.Context) error {
 		result, err = tryLock(c, cfg)
 		return nil
