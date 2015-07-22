@@ -16,6 +16,7 @@ type LockConfig struct {
 	Owner            string
 	DurationInMillis int64
 	Unlock           int64
+	LockTime         int64
 }
 
 type Lock struct {
@@ -47,13 +48,13 @@ func tryLock(c appengine.Context, cfg *LockConfig) (*LockResult, error) {
 	if time.Now().UnixNano() < l.LockTime {
 		return result, nil
 	}
-	if cfg.Unlock == 0 {
-		l.LockTime = time.Now().UnixNano() + cfg.DurationInMillis*1000000
-	} else {
-		if cfg.Unlock != l.LockTime {
-			return result, nil
-		}
+	if cfg.Unlock != 0 && cfg.Unlock != l.LockTime {
+		return result, nil
+	}
+	if cfg.DurationInMillis <= 0 {
 		l.LockTime = 0
+	} else {
+		l.LockTime = time.Now().UnixNano() + cfg.DurationInMillis*1000000
 	}
 	l.Owner = cfg.Owner
 	l.ModifiedTime = time.Now().UnixNano()
